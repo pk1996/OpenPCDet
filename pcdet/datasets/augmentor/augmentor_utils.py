@@ -75,6 +75,7 @@ def global_scaling(gt_boxes, points, scale_range):
     if scale_range[1] - scale_range[0] < 1e-3:
         return gt_boxes, points
     noise_scale = np.random.uniform(scale_range[0], scale_range[1])
+    # TODO - Check warning - RuntimeWarning: overflow encountered in multiply
     points[:, :3] *= noise_scale
     gt_boxes[:, :6] *= noise_scale
 

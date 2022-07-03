@@ -7,7 +7,6 @@ __all__ = [
     '__version__'
 ]
 
-
 def get_git_commit_number():
     if not (Path(__file__).parent / '../.git').exists():
         return '0000000'

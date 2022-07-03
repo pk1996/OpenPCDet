@@ -20,7 +20,8 @@ from train_utils.train_utils import train_model
 
 def parse_config():
     parser = argparse.ArgumentParser(description='arg parser')
-    parser.add_argument('--cfg_file', type=str, default=None, help='specify the config for training')
+    # parser.add_argument('--cfg_file', type=str, default="cfgs/kitti_models/pointpillar.yaml" , help='specify the config for training')
+    parser.add_argument('--cfg_file', type=str, default="cfgs/livox_models/pointpillar.yaml" , help='specify the config for training')
 
     parser.add_argument('--batch_size', type=int, default=None, required=False, help='batch size for training')
     parser.add_argument('--epochs', type=int, default=None, required=False, help='number of epochs to train for')
@@ -45,6 +46,7 @@ def parse_config():
     parser.add_argument('--save_to_file', action='store_true', default=False, help='')
 
     args = parser.parse_args()
+    
 
     cfg_from_yaml_file(args.cfg_file, cfg)
     cfg.TAG = Path(args.cfg_file).stem
@@ -123,6 +125,8 @@ def main():
     # load checkpoint if it is possible
     start_epoch = it = 0
     last_epoch = -1
+    # TODO - pass via argparse
+    args.pretrained_model = '/home/pkumar/OpenPCDet/pretrained/pointpillar_7728.pth'
     if args.pretrained_model is not None:
         model.load_params_from_file(filename=args.pretrained_model, to_cpu=dist_train, logger=logger)
 

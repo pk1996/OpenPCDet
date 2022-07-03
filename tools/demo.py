@@ -62,12 +62,19 @@ class DemoDataset(DatasetTemplate):
 
 def parse_config():
     parser = argparse.ArgumentParser(description='arg parser')
-    parser.add_argument('--cfg_file', type=str, default='cfgs/kitti_models/second.yaml',
-                        help='specify the config for demo')
-    parser.add_argument('--data_path', type=str, default='demo_data',
+    # parser.add_argument('--cfg_file', type=str, default='/home/pkumar/OpenPCDet/tools/cfgs/kitti_models/pointpillar.yaml',
+    #                     help='specify the config for demo')
+    # parser.add_argument('--data_path', type=str, default='/home/pkumar/OpenPCDet/data/kitti/testing/velodyne/000000.bin',
+    #                     help='specify the point cloud data file or directory')
+    # parser.add_argument('--ext', type=str, default='.bin', help='specify the extension of your point cloud data file')
+    parser.add_argument('--cfg_file', type=str, default='/home/pkumar/OpenPCDet/tools/cfgs/livox_models/pointpillar.yaml',
+    help='specify the config for demo')
+    parser.add_argument('--data_path', type=str, default='/home/pkumar/OpenPCDet/tools/point_cloud.npy',
                         help='specify the point cloud data file or directory')
-    parser.add_argument('--ckpt', type=str, default=None, help='specify the pretrained model')
-    parser.add_argument('--ext', type=str, default='.bin', help='specify the extension of your point cloud data file')
+    parser.add_argument('--ext', type=str, default='.npy', help='specify the extension of your point cloud data file')
+    parser.add_argument('--ckpt', type=str, default='/home/pkumar/OpenPCDet/output_from_scratch_1/livox_models/pointpillar/default/ckpt/checkpoint_epoch_40.pth', help='specify the pretrained model')
+    # parser.add_argument('--ckpt', type=str, default='/home/pkumar/OpenPCDet/pretrained/pointpillar_7728.pth', help='specify the pretrained model')
+
 
     args = parser.parse_args()
 
@@ -97,13 +104,22 @@ def main():
             load_data_to_gpu(data_dict)
             pred_dicts, _ = model.forward(data_dict)
 
-            V.draw_scenes(
-                points=data_dict['points'][:, 1:], ref_boxes=pred_dicts[0]['pred_boxes'],
-                ref_scores=pred_dicts[0]['pred_scores'], ref_labels=pred_dicts[0]['pred_labels']
-            )
+            print('%d boxes were predicted'%((len(pred_dicts[0]['pred_boxes']))))
 
-            if not OPEN3D_FLAG:
-                mlab.show(stop=True)
+
+            torch.save(pred_dicts[0]['pred_boxes'], 'kitti_box_pred.pt')
+            torch.save((data_dict['points'][:, 1:]), 'kitti_pt_cld.pt')
+            torch.save(pred_dicts[0]['pred_scores'], 'kitti_box_scores.pt')
+            torch.save((pred_dicts[0]['pred_labels']), 'kitti_box_labels.pt')
+            
+            # Displaying in lab SSH doesn't work
+            # V.draw_scenes(
+            #     points=data_dict['points'][:, 1:], ref_boxes=pred_dicts[0]['pred_boxes'],
+            #     ref_scores=pred_dicts[0]['pred_scores'], ref_labels=pred_dicts[0]['pred_labels']
+            # )
+
+            # if not OPEN3D_FLAG:
+            #     mlab.show(stop=True)
 
     logger.info('Demo done.')
 
