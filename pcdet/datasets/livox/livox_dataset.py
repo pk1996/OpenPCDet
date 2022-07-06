@@ -152,7 +152,7 @@ class LivoxDataset(DatasetTemplate):
                     '''
                     loc_lidar = loc #calib.rect_to_lidar(loc)
                     l, h, w = dims[:, 0:1], dims[:, 1:2], dims[:, 2:3]
-                    loc_lidar[:, 2] += h[:, 0] / 2
+                    # loc_lidar[:, 2] += h[:, 0] / 2
                     gt_boxes_lidar = np.concatenate([loc_lidar, l, w, h, -(np.pi / 2 + rots[..., np.newaxis])], axis=1)
                     annotations['gt_boxes_lidar'] = gt_boxes_lidar
                 else:
@@ -434,7 +434,7 @@ if __name__ == '__main__':
         ROOT_DIR = (Path(__file__).resolve().parent / '../../../').resolve()
         create_livox_infos(
             dataset_cfg=dataset_cfg,
-            class_names=['car', 'pedestrian', 'bicycle'],
+            class_names=['car', 'pedestrian'],
             data_path=ROOT_DIR / 'data' / 'livox',
             save_path=ROOT_DIR / 'data' / 'livox'
         )

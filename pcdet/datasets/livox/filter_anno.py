@@ -10,12 +10,12 @@ python -m pcdet.datasets.livox.filter_anno
 '''
 import os
 import os.path as osp
-import sys
 import torch
 import numpy as np
 from tqdm import tqdm
 from ...ops.roiaware_pool3d import roiaware_pool3d_utils
 from ...utils import object3d_livox
+import argparse
 
 def get_lidar(lidar_file):
     '''
@@ -35,8 +35,12 @@ def get_lidar(lidar_file):
     points = points[:,0:3]
     return points 
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--split', default='test', help='set split - [test, train' )
+args = parser.parse_args()
+split = args.split
 
-split = 'train'
+CLASS = ['car', 'pedestrian']
 
 folder_name = 'testing' if split == 'test' else 'training'
 
@@ -65,22 +69,26 @@ for anno in tqdm(anno_file_list):
 
     # Iterate over each annotation and check if contained in 
     # frontal point cloud
-    anno = object3d_livox.get_objects_from_label(anno_file)
     src_lines = open(anno_file, 'r').readlines()
+    for src_line in src_lines:
 
-    for i in range(len(anno)):
-        loc_lidar = anno[i].loc #calib.rect_to_lidar(loc)
-        l, h, w = anno[i].l, anno[i].h, anno[i].w
-        # loc_lidar[2] += h / 2
-        rots = anno[i].ry
+        # Ignore labels that do not correspond to
+        # car and pedastrain
+        class_name = src_line.split(',')[1]
+        if class_name not in CLASS:
+            continue
+        
+        anno = object3d_livox.Object3d(src_line)
+        loc_lidar = anno.loc #calib.rect_to_lidar(loc)
+        l, h, w = anno.l, anno.h, anno.w
+        rots = anno.ry
         gt_boxes = np.hstack([loc_lidar, np.array([l, w, h, -(np.pi / 2 + rots)])]).reshape(1,-1)
+
+        # Get points inside bbox
         point_indices = roiaware_pool3d_utils.points_in_boxes_cpu(
             torch.from_numpy(points[:, 0:3]), torch.from_numpy(gt_boxes)
         ).numpy()  # (nboxes, npoints)
+        # Retain labels with atleast 1 point
         if np.any(point_indices):
             # Retain annotation
-            f.write(src_lines[i])
-
-        # Note - This might be a potential source of error. I have not 
-        # verified if the above logic is correct by manually visualizing 
-        # the data and boxes!
+            f.write(src_line)

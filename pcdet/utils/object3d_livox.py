@@ -82,6 +82,14 @@ class Object3d(object):
         corners3d = np.dot(R, corners3d).T
         corners3d = corners3d + self.loc
         return corners3d
+    
+    def print_(self):
+        '''
+        To print content of class.
+        For debugging puroposes
+        '''
+        print(self.cls_type, self.loc, self.l, self.w, self.h, self.ry)
+        return
 
     '''
        def to_str(self):
