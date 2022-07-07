@@ -4,6 +4,7 @@ Adding support to traing on livox synthetic data https://www.livoxtech.com/simu-
 
 1. Prepare data 
    Arrange the data in the following dir structure
+   ```
    OpenPCDet
     ├── data
     │   ├── livox
@@ -14,11 +15,13 @@ Adding support to traing on livox synthetic data https://www.livoxtech.com/simu-
     │   │   │   ├──anno & points
     ├── pcdet
     ├── tools
-
+    ```
 2. Generate livox_dataset.yaml config file
 
 3. Generate data infos by running the following command 
+```
   python -m pcdet.datasets.kitti.kitti_dataset create_kitti_infos tools/cfgs/dataset_configs/kitti_dataset.yaml
+```
 
 4. Create model config file - tools/cfgs/livox_models/pointpillar.yaml
 
