@@ -125,28 +125,11 @@ class LivoxDataset(DatasetTemplate):
                     rots = annotations['rotation_y'][:num_objects]
                     loc_lidar = loc
                     l, h, w = dims[:, 0:1], dims[:, 1:2], dims[:, 2:3]
-                    # loc_lidar[:, 2] += h[:, 0] / 2 ## livox annotations gives center coordinates
                     gt_boxes_lidar = np.concatenate([loc_lidar, l, w, h, -(np.pi / 2 + rots[..., np.newaxis])], axis=1)
                     annotations['gt_boxes_lidar'] = gt_boxes_lidar
                 else:
                     print('%s sample_idx: %s' % (self.split, sample_idx))
                 info['annos'] = annotations
-
-                # if count_inside_pts:
-                #     points = self.get_lidar(sample_idx)
-                #     calib = self.get_calib(sample_idx)
-                #     pts_rect = calib.lidar_to_rect(points[:, 0:3])
-
-                #     fov_flag = self.get_fov_flag(pts_rect, info['image']['image_shape'], calib)
-                #     pts_fov = points[fov_flag]
-                #     corners_lidar = box_utils.boxes_to_corners_3d(gt_boxes_lidar)
-                #     num_points_in_gt = -np.ones(num_gt, dtype=np.int32)
-
-                #     for k in range(num_objects):
-                #         flag = box_utils.in_hull(pts_fov[:, 0:3], corners_lidar[k])
-                #         num_points_in_gt[k] = flag.sum()
-                #     annotations['num_points_in_gt'] = num_points_in_gt
-
             return info
 
         sample_id_list = sample_id_list if sample_id_list is not None else self.sample_id_list
@@ -166,10 +149,6 @@ class LivoxDataset(DatasetTemplate):
         with open(info_path, 'rb') as f:
             infos = pickle.load(f)
 
-        '''
-        I am not sure how about the use of the gt database pkl. It saves meta data of each ibject in the point cloud.
-        In terms of size it is not that big (for kitti ~150 MB). Secondly it does this for classes that are not of interest lile dog, etc. 
-        '''
         for k in range(len(infos)):
             print('gt_database sample: %d/%d' % (k + 1, len(infos)))
             info = infos[k]
@@ -179,8 +158,6 @@ class LivoxDataset(DatasetTemplate):
             if not annos:
                 continue
             names = annos['name']
-            # difficulty = annos['difficulty']
-            # bbox = annos['bbox']
             gt_boxes = annos['gt_boxes_lidar']
 
             num_obj = gt_boxes.shape[0]
@@ -322,12 +299,10 @@ class LivoxDataset(DatasetTemplate):
 
         input_dict = {
             'frame_id': sample_idx,
-            # 'calib': calib,
         }
 
         if 'annos' in info and bool(info['annos']):
             annos = info['annos']
-            # annos = common_utils.drop_info_with_name(annos, name='DontCare')
             loc, dims, rots = annos['location'], annos['dimensions'], annos['rotation_y']
             gt_names = annos['name']
             gt_boxes_lidar = np.concatenate([loc, dims, rots[..., np.newaxis]], axis=1).astype(np.float32)
@@ -349,7 +324,6 @@ class LivoxDataset(DatasetTemplate):
 
         data_dict = self.prepare_data(data_dict=input_dict)
 
-        # data_dict['image_shape'] = img_shape
         return data_dict
 
 
@@ -411,15 +385,3 @@ if __name__ == '__main__':
             data_path=ROOT_DIR / 'data' / 'livox',
             save_path=ROOT_DIR / 'data' / 'livox'
         )
-    # import sys
-    # import yaml
-    # from pathlib import Path
-    # from easydict import EasyDict
-    # dataset_cfg = EasyDict(yaml.safe_load("tools/cfgs/dataset_configs/kitti_dataset.yaml "))
-    # ROOT_DIR = (Path(__file__).resolve().parent / '../../../').resolve()
-    # create_livox_infos(
-    #     dataset_cfg=dataset_cfg,
-    #     class_names=['Car', 'Pedestrian', 'Cyclist'],
-    #     data_path=ROOT_DIR / 'data' / 'kitti',
-    #     save_path=ROOT_DIR / 'data' / 'kitti'
-    # ) 
