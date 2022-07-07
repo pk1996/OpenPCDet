@@ -26,7 +26,9 @@ Adding support to traing on livox synthetic data https://www.livoxtech.com/simu-
 4. Create model config file - tools/cfgs/livox_models/pointpillar.yaml
 
 5. Start training pointpillar using the following command
+```
    python train.py --pretrained_model <path to .pth model file>
+```
 
 <img src="docs/open_mmlab.png" align="right" width="30%">
 
