@@ -16,6 +16,8 @@ Adding support to traing on livox synthetic data https://www.livoxtech.com/simu-
     ├── pcdet
     ├── tools
     ```
+    Use generate data_organize.py and generate_imageset.py in pcdet/datasets/livox.
+
 2. Generate livox_dataset.yaml config file
 
 3. Generate data infos by running the following command 
