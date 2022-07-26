@@ -257,12 +257,16 @@ class LivoxDataset(DatasetTemplate):
 
         """
         def get_template_prediction(num_samples):
+            # ret_dict = {
+            #     'name': np.zeros(num_samples), 'truncated': np.zeros(num_samples),
+            #     'occluded': np.zeros(num_samples), 'alpha': np.zeros(num_samples),
+            #     'bbox': np.zeros([num_samples, 4]), 'dimensions': np.zeros([num_samples, 3]),
+            #     'location': np.zeros([num_samples, 3]), 'rotation_y': np.zeros(num_samples),
+            #     'score': np.zeros(num_samples), 'boxes_lidar': np.zeros([num_samples, 7])
+            # }
             ret_dict = {
-                'name': np.zeros(num_samples), 'truncated': np.zeros(num_samples),
-                'occluded': np.zeros(num_samples), 'alpha': np.zeros(num_samples),
-                'bbox': np.zeros([num_samples, 4]), 'dimensions': np.zeros([num_samples, 3]),
-                'location': np.zeros([num_samples, 3]), 'rotation_y': np.zeros(num_samples),
-                'score': np.zeros(num_samples), 'boxes_lidar': np.zeros([num_samples, 7])
+                'name': np.zeros(num_samples), 'dimensions': np.zeros([num_samples, 3]), 'boxes_lidar': np.zeros([num_samples, 7]),
+                'location': np.zeros([num_samples, 3]), 'rotation_y': np.zeros(num_samples), 'score': np.zeros(num_samples)
             }
             return ret_dict
 
@@ -274,19 +278,19 @@ class LivoxDataset(DatasetTemplate):
             if pred_scores.shape[0] == 0:
                 return pred_dict
 
-            calib = batch_dict['calib'][batch_index]
-            image_shape = batch_dict['image_shape'][batch_index].cpu().numpy()
-            pred_boxes_camera = box_utils.boxes3d_lidar_to_kitti_camera(pred_boxes, calib)
-            pred_boxes_img = box_utils.boxes3d_kitti_camera_to_imageboxes(
-                pred_boxes_camera, calib, image_shape=image_shape
-            )
+            # calib = batch_dict['calib'][batch_index]
+            # image_shape = batch_dict['image_shape'][batch_index].cpu().numpy()
+            # pred_boxes_camera = box_utils.boxes3d_lidar_to_kitti_camera(pred_boxes, calib)
+            # pred_boxes_img = box_utils.boxes3d_kitti_camera_to_imageboxes(
+            #     pred_boxes_camera, calib, image_shape=image_shape
+            # )
 
             pred_dict['name'] = np.array(class_names)[pred_labels - 1]
-            pred_dict['alpha'] = -np.arctan2(-pred_boxes[:, 1], pred_boxes[:, 0]) + pred_boxes_camera[:, 6]
-            pred_dict['bbox'] = pred_boxes_img
-            pred_dict['dimensions'] = pred_boxes_camera[:, 3:6]
-            pred_dict['location'] = pred_boxes_camera[:, 0:3]
-            pred_dict['rotation_y'] = pred_boxes_camera[:, 6]
+            # pred_dict['alpha'] = -np.arctan2(-pred_boxes[:, 1], pred_boxes[:, 0]) + pred_boxes_camera[:, 6]
+            # pred_dict['bbox'] = pred_boxes_img
+            pred_dict['dimensions'] = pred_boxes[:, 3:6]
+            pred_dict['location'] = pred_boxes[:, 0:3]
+            pred_dict['rotation_y'] = pred_boxes[:, 6]
             pred_dict['score'] = pred_scores
             pred_dict['boxes_lidar'] = pred_boxes
 
@@ -319,11 +323,39 @@ class LivoxDataset(DatasetTemplate):
 
     # TODO - Yet to touch evaluation part of code
     def evaluation(self, det_annos, class_names, **kwargs):
-        return None, {}
-        # if 'annos' not in self.kitti_infos[0].keys():
-        #     return None, {}
+        # return None, {}
+        if 'annos' not in self.kitti_infos[0].keys():
+            return None, {}
 
-        # from .kitti_object_eval_python import eval as kitti_eval
+        from ..kitti.kitti_object_eval_python import eval as kitti_eval
+        from ..kitti import kitti_utils
+
+        map_name_to_kitti = {
+            'car': 'Car',
+            'pedestrian': 'Pedestrian',
+        }
+
+        # map_name_to_kitti = {
+        #     'Car': 'car',
+        #     'Pedestrian': 'pedestrian',
+        # }
+
+        eval_det_annos = copy.deepcopy(det_annos)
+        eval_gt_annos = copy.deepcopy(self.kitti_infos)
+        eval_gt_annos = [kitti_info['annos'] for kitti_info in self.kitti_infos]
+
+        kitti_utils.transform_annotations_to_kitti_format(eval_det_annos, map_name_to_kitti=map_name_to_kitti)
+        kitti_utils.transform_annotations_to_kitti_format(
+            eval_gt_annos, map_name_to_kitti=map_name_to_kitti,
+            info_with_fakelidar=self.dataset_cfg.get('INFO_WITH_FAKELIDAR', False)
+        )
+
+        kitti_class_names = [map_name_to_kitti[x] for x in class_names]
+
+        ap_result_str, ap_dict = kitti_eval.get_official_eval_result(
+            gt_annos=eval_gt_annos, dt_annos=eval_det_annos, current_classes=kitti_class_names
+        )
+        return ap_result_str, ap_dict
 
         # eval_det_annos = copy.deepcopy(det_annos)
         # eval_gt_annos = [copy.deepcopy(info['annos']) for info in self.kitti_infos]

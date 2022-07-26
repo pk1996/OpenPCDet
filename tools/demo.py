@@ -62,20 +62,14 @@ class DemoDataset(DatasetTemplate):
 
 def parse_config():
     parser = argparse.ArgumentParser(description='arg parser')
-    # parser.add_argument('--cfg_file', type=str, default='/home/pkumar/OpenPCDet/tools/cfgs/kitti_models/pointpillar.yaml',
-    #                     help='specify the config for demo')
-    # parser.add_argument('--data_path', type=str, default='/home/pkumar/OpenPCDet/data/kitti/testing/velodyne/000000.bin',
-    #                     help='specify the point cloud data file or directory')
-    # parser.add_argument('--ext', type=str, default='.bin', help='specify the extension of your point cloud data file')
     parser.add_argument('--cfg_file', type=str, default='/home/pkumar/OpenPCDet/tools/cfgs/livox_models/pointpillar.yaml',
     help='specify the config for demo')
-    parser.add_argument('--data_path', type=str, default='/home/pkumar/OpenPCDet/tools/point_cloud.npy',
+    # specify point cloud
+    parser.add_argument('--data_path', type=str, default='/home/pkumar/OpenPCDet/tools/point_cloud_filt.npy',
                         help='specify the point cloud data file or directory')
     parser.add_argument('--ext', type=str, default='.npy', help='specify the extension of your point cloud data file')
-    parser.add_argument('--ckpt', type=str, default='/home/pkumar/OpenPCDet/output_from_scratch_1/livox_models/pointpillar/default/ckpt/checkpoint_epoch_40.pth', help='specify the pretrained model')
-    # parser.add_argument('--ckpt', type=str, default='/home/pkumar/OpenPCDet/pretrained/pointpillar_7728.pth', help='specify the pretrained model')
-
-
+    # specify livox model
+    parser.add_argument('--ckpt', type=str, default='/home/pkumar/OpenPCDet/pretrained/pointpillar_7728.pth', help='specify the pretrained model')
     args = parser.parse_args()
 
     cfg_from_yaml_file(args.cfg_file, cfg)
@@ -97,6 +91,7 @@ def main():
     model.load_params_from_file(filename=args.ckpt, logger=logger, to_cpu=True)
     model.cuda()
     model.eval()
+    threshold = .4
     with torch.no_grad():
         for idx, data_dict in enumerate(demo_dataset):
             logger.info(f'Visualized sample index: \t{idx + 1}')
@@ -104,13 +99,15 @@ def main():
             load_data_to_gpu(data_dict)
             pred_dicts, _ = model.forward(data_dict)
 
-            print('%d boxes were predicted'%((len(pred_dicts[0]['pred_boxes']))))
+            mask = pred_dicts[0]['pred_scores'] > threshold
+            pred_dicts[0]['pred_labels'] = pred_dicts[0]['pred_labels']-1 # coz the mapping in viz code and object 3d livox is not consistent
+            print('%d boxes were predicted'%((len(pred_dicts[0]['pred_boxes'][mask]))))
+            print(pred_dicts[0]['pred_scores'])
 
-
-            torch.save(pred_dicts[0]['pred_boxes'], 'kitti_box_pred.pt')
-            torch.save((data_dict['points'][:, 1:]), 'kitti_pt_cld.pt')
-            torch.save(pred_dicts[0]['pred_scores'], 'kitti_box_scores.pt')
-            torch.save((pred_dicts[0]['pred_labels']), 'kitti_box_labels.pt')
+            torch.save(pred_dicts[0]['pred_boxes'][mask], 'kitti_box_pred.pt')
+            # torch.save((data_dict['points'][:, 1:]), 'kitti_pt_cld.pt')
+            torch.save(pred_dicts[0]['pred_scores'][mask], 'kitti_box_scores.pt')
+            torch.save((pred_dicts[0]['pred_labels'][mask]), 'kitti_box_labels.pt')
             
             # Displaying in lab SSH doesn't work
             # V.draw_scenes(
