@@ -1,7 +1,7 @@
 CLASS_NAMES: ['car', 'pedestrian']
 
 DATA_CONFIG: 
-    _BASE_CONFIG_: cfgs/dataset_configs/livox.yaml
+    _BASE_CONFIG_: cfgs/dataset_configs/livox_dataset.yaml
     POINT_CLOUD_RANGE: [-150, -312, -3, 500, 326, 5]
     DATA_PROCESSOR:
         - NAME: mask_points_and_boxes_outside_range
