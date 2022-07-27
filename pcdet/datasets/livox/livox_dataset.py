@@ -208,11 +208,9 @@ class LivoxDataset(DatasetTemplate):
         """
         def get_template_prediction(num_samples):
             ret_dict = {
-                'name': np.zeros(num_samples), 'truncated': np.zeros(num_samples),
-                'occluded': np.zeros(num_samples), 'alpha': np.zeros(num_samples),
-                'bbox': np.zeros([num_samples, 4]), 'dimensions': np.zeros([num_samples, 3]),
-                'location': np.zeros([num_samples, 3]), 'rotation_y': np.zeros(num_samples),
-                'score': np.zeros(num_samples), 'boxes_lidar': np.zeros([num_samples, 7])
+                'name': np.zeros(num_samples), 'dimensions': np.zeros([num_samples, 3]), 'boxes_lidar': np.zeros([num_samples, 7]),
+                'location': np.zeros([num_samples, 3]), 'rotation_y': np.zeros(num_samples), 'score': np.zeros(num_samples),
+                'alpha' : np.zeros(num_samples),
             }
             return ret_dict
 
@@ -224,19 +222,11 @@ class LivoxDataset(DatasetTemplate):
             if pred_scores.shape[0] == 0:
                 return pred_dict
 
-            calib = batch_dict['calib'][batch_index]
-            image_shape = batch_dict['image_shape'][batch_index].cpu().numpy()
-            pred_boxes_camera = box_utils.boxes3d_lidar_to_kitti_camera(pred_boxes, calib)
-            pred_boxes_img = box_utils.boxes3d_kitti_camera_to_imageboxes(
-                pred_boxes_camera, calib, image_shape=image_shape
-            )
-
             pred_dict['name'] = np.array(class_names)[pred_labels - 1]
-            pred_dict['alpha'] = -np.arctan2(-pred_boxes[:, 1], pred_boxes[:, 0]) + pred_boxes_camera[:, 6]
-            pred_dict['bbox'] = pred_boxes_img
-            pred_dict['dimensions'] = pred_boxes_camera[:, 3:6]
-            pred_dict['location'] = pred_boxes_camera[:, 0:3]
-            pred_dict['rotation_y'] = pred_boxes_camera[:, 6]
+            pred_dict['alpha'] = -np.arctan2(-pred_boxes[:, 1], pred_boxes[:, 0]) + pred_boxes[:, 6]
+            pred_dict['dimensions'] = pred_boxes[:, 3:6]
+            pred_dict['location'] = pred_boxes[:, 0:3]
+            pred_dict['rotation_y'] = pred_boxes[:, 6]
             pred_dict['score'] = pred_scores
             pred_dict['boxes_lidar'] = pred_boxes
 
@@ -267,19 +257,35 @@ class LivoxDataset(DatasetTemplate):
 
         return annos
 
-    # TODO - Yet to touch evaluation part of code
+
     def evaluation(self, det_annos, class_names, **kwargs):
-        return None, {}
-        # if 'annos' not in self.kitti_infos[0].keys():
-        #     return None, {}
+        if 'annos' not in self.livox_infos[0].keys():
+            return None, {}
 
-        # from .kitti_object_eval_python import eval as kitti_eval
+        from ..kitti.kitti_object_eval_python import eval as kitti_eval
+        from ..kitti import kitti_utils
 
-        # eval_det_annos = copy.deepcopy(det_annos)
-        # eval_gt_annos = [copy.deepcopy(info['annos']) for info in self.kitti_infos]
-        # ap_result_str, ap_dict = kitti_eval.get_official_eval_result(eval_gt_annos, eval_det_annos, class_names)
+        map_name_to_kitti = {
+            'car': 'Car',
+            'pedestrian': 'Pedestrian',
+        }
 
-        # return ap_result_str, ap_dict
+        eval_det_annos = copy.deepcopy(det_annos)
+        eval_gt_annos = copy.deepcopy(self.livox_infos)
+        eval_gt_annos = [kitti_info['annos'] for kitti_info in self.livox_infos]
+
+        kitti_utils.transform_annotations_to_kitti_format(eval_det_annos, map_name_to_kitti=map_name_to_kitti)
+        kitti_utils.transform_annotations_to_kitti_format(
+            eval_gt_annos, map_name_to_kitti=map_name_to_kitti,  
+            info_with_fakelidar=self.dataset_cfg.get('INFO_WITH_FAKELIDAR', False)
+        )
+
+        kitti_class_names = [map_name_to_kitti[x] for x in class_names]
+
+        ap_result_str, ap_dict = kitti_eval.get_official_eval_result(
+            gt_annos=eval_gt_annos, dt_annos=eval_det_annos, current_classes=kitti_class_names
+        )
+        return ap_result_str, ap_dict
 
     def __len__(self):
         if self._merge_all_iters_to_one_epoch:
@@ -303,9 +309,20 @@ class LivoxDataset(DatasetTemplate):
 
         if 'annos' in info and bool(info['annos']):
             annos = info['annos']
-            loc, dims, rots = annos['location'], annos['dimensions'], annos['rotation_y']
             gt_names = annos['name']
-            gt_boxes_lidar = np.concatenate([loc, dims, rots[..., np.newaxis]], axis=1).astype(np.float32)
+            # loc, dims, rots = annos['location'], annos['dimensions'], annos['rotation_y']
+            # gt_boxes_lidar = np.concatenate([loc, dims, rots[..., np.newaxis]], axis=1).astype(np.float32)
+            '''
+            In the KITTI code, the box is created in the CAMERA COORDINATE
+            FRAME and then passed to a util function to translate to lidar 
+            coordinate. This is mainly for the center location. The dim remain
+            unchanged. The angle is modified to change to normative coordinate(?)
+
+            In case of LIVOX, the center is already in lidar coordinate. Only the 
+            angle needs to be changed to normative coordinate. This is alredy done 
+            in the gt_boxes_lidar field.
+            '''
+            gt_boxes_lidar = annos['gt_boxes_lidar']
             input_dict.update({
                 'gt_names': gt_names,
                 'gt_boxes': gt_boxes_lidar
@@ -343,25 +360,25 @@ def create_livox_infos(dataset_cfg, class_names, data_path, save_path, workers=4
     print('---------------Start to generate data infos---------------')
 
     dataset.set_split(train_split)
-    kitti_infos_train = dataset.get_infos(num_workers=workers, has_label=True, count_inside_pts=True)
+    livox_infos_train = dataset.get_infos(num_workers=workers, has_label=True, count_inside_pts=True)
     with open(train_filename, 'wb') as f:
-        pickle.dump(kitti_infos_train, f)
+        pickle.dump(livox_infos_train, f)
     print('Kitti info train file is saved to %s' % train_filename)
 
     dataset.set_split(val_split)
-    kitti_infos_val = dataset.get_infos(num_workers=workers, has_label=True, count_inside_pts=True)
+    livox_infos_val = dataset.get_infos(num_workers=workers, has_label=True, count_inside_pts=True)
     with open(val_filename, 'wb') as f:
-        pickle.dump(kitti_infos_val, f)
+        pickle.dump(livox_infos_val, f)
     print('Kitti info val file is saved to %s' % val_filename)
 
     with open(trainval_filename, 'wb') as f:
-        pickle.dump(kitti_infos_train + kitti_infos_val, f)
+        pickle.dump(livox_infos_train + livox_infos_val, f)
     print('Kitti info trainval file is saved to %s' % trainval_filename)
 
     dataset.set_split('test')
-    kitti_infos_test = dataset.get_infos(num_workers=workers, has_label=False, count_inside_pts=False)
+    livox_infos_test = dataset.get_infos(num_workers=workers, has_label=False, count_inside_pts=False)
     with open(test_filename, 'wb') as f:
-        pickle.dump(kitti_infos_test, f)
+        pickle.dump(livox_infos_test, f)
     print('Kitti info test file is saved to %s' % test_filename)
 
     print('---------------Start create groundtruth database for data augmentation---------------')
