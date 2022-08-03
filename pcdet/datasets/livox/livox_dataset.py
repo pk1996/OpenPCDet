@@ -71,7 +71,7 @@ class LivoxDataset(DatasetTemplate):
             for line in file:
                 pt_list = line.rstrip().split(',')
                 points.append([[float(item) for item in pt_list]])
-        points = np.concatenate(points)
+        points = np.concatenate(points).astype(np.float32)
         points = points.reshape(-1, 6)
         
         # Extract points corresponding to the frontal lidar
