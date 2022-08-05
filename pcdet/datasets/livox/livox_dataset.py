@@ -272,7 +272,7 @@ class LivoxDataset(DatasetTemplate):
 
         eval_det_annos = copy.deepcopy(det_annos)
         eval_gt_annos = copy.deepcopy(self.livox_infos)
-        eval_gt_annos = [kitti_info['annos'] for kitti_info in self.livox_infos]
+        eval_gt_annos = [kitti_info['annos'] for kitti_info in eval_gt_annos]
 
         kitti_utils.transform_annotations_to_kitti_format(eval_det_annos, map_name_to_kitti=map_name_to_kitti)
         kitti_utils.transform_annotations_to_kitti_format(
