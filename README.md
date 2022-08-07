@@ -22,7 +22,8 @@ Adding support to traing on livox synthetic data https://www.livoxtech.com/simu-
 
 3. Generate data infos by running the following command 
 ```
-  python -m pcdet.datasets.kitti.kitti_dataset create_kitti_infos tools/cfgs/dataset_configs/kitti_dataset.yaml
+  python -m pcdet.datasets.livox.livox_dataset create_livox_infos tools/cfgs/dataset_configs/livox_dataset.yaml
+
 ```
 
 4. Create model config file - tools/cfgs/livox_models/pointpillar.yaml

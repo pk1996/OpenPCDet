@@ -125,7 +125,16 @@ class LivoxDataset(DatasetTemplate):
                     rots = annotations['rotation_y'][:num_objects]
                     loc_lidar = loc
                     l, h, w = dims[:, 0:1], dims[:, 1:2], dims[:, 2:3]
-                    gt_boxes_lidar = np.concatenate([loc_lidar, l, w, h, -(np.pi / 2 + rots[..., np.newaxis])], axis=1)
+                    '''
+                    Oddly, the l,w,h definition of livox and kitti are different. 
+                    The mapping is as follows (k->l)-
+                    l -> w
+                    w -> l
+                    h -> h
+                    I found this out while trying to visualize the intermediate boxes & 
+                    point cloud and found this issue! [102]
+                    '''
+                    gt_boxes_lidar = np.concatenate([loc_lidar, w, l, h, -(np.pi / 2 + rots[..., np.newaxis])], axis=1)
                     annotations['gt_boxes_lidar'] = gt_boxes_lidar
                 else:
                     print('%s sample_idx: %s' % (self.split, sample_idx))
@@ -189,7 +198,6 @@ class LivoxDataset(DatasetTemplate):
         with open(db_info_save_path, 'wb') as f:
             pickle.dump(all_db_infos, f)
 
-    # TODO - Evalutation code
     @staticmethod
     def generate_prediction_dicts(batch_dict, pred_dicts, class_names, output_path=None):
         """
@@ -340,6 +348,10 @@ class LivoxDataset(DatasetTemplate):
             input_dict['points'] = points
 
         data_dict = self.prepare_data(data_dict=input_dict)
+
+        # To save and viz ground truth that is being fed to the model
+        # np.save('gt_boxes_dl.npy', data_dict['gt_boxes'][:,[-1,0,1,2,3,4,5,6]])
+        # np.save('point_cloud_dl.npy', data_dict['points'])
 
         return data_dict
 

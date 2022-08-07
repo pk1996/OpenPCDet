@@ -38,6 +38,7 @@ def idx2name(i):
 # base folder
 cwd = os.path.dirname(os.path.realpath('__file__'))
 base_path = os.path.join(cwd, '../../../data/livox')
+# base_path = os.path.join(cwd, 'data', 'livox')
 base_path = os.path.abspath(base_path)
 
 # path for anno and points folder
@@ -57,13 +58,17 @@ for i in range(k):
         test_idx.append(i)
 test_idx = np.array(test_idx)
 val_idx = np.random.choice(train_idx, int(0.1*train_idx.shape[0]), replace = False)
+train_idx_ = [idx for idx in train_idx if idx not in val_idx]
+train_idx = np.array(train_idx_)
 
+print('Training data.....')
 # Create test and training dir
 test_base_path = osp.join(base_path, 'testing')
 train_base_path = osp.join(base_path, 'training')
 imageset_path = osp.join(base_path, 'ImageSets')
 testset = osp.join(imageset_path, 'test.txt')
 trainset = osp.join(imageset_path, 'train.txt')
+valset = osp.join(imageset_path, 'val.txt')
 
 if not osp.exists(test_base_path):
     os.mkdir(test_base_path)
@@ -74,6 +79,7 @@ if not osp.exists(test_base_path):
     os.mkdir(osp.join(train_base_path,'points'))
     os.mkdir(imageset_path)
 
+print('Test data.....')
 # Create test split
 f = open(testset, 'w')
 for i,idx in enumerate(tqdm(test_idx)):
@@ -97,3 +103,22 @@ for i,idx in enumerate(tqdm(train_idx)):
     f.write(idx_name + '\n')
     shutil.move(a_file_s, a_file_path)
     shutil.move(p_file_s, p_file_path)
+
+print('Val data.....')
+# Create val imageset file
+f = open(valset, 'w')
+for i,idx in enumerate(tqdm(val_idx)):
+    _, _, idx_name = idx2name(i)
+    f.write(idx_name + '\n')
+
+
+'''
+Small Bug - The data points corresponding to eval is not moved 
+to training/anno and training/points.
+Kindly do it manually using the following - 
+
+mv points/* training/points/
+mv anno/* training/anno/
+
+
+'''
