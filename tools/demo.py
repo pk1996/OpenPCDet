@@ -1,6 +1,15 @@
+'''
+python demo.py --cfg_file cfgs/livox_models/pointpillar.yaml --data_path ../data/livox/testing/points/000432.txt --ckpt ../output_Aug8_fromscratch_196/livox_models/pointpillar/default/ckpt/checkpoint_epoch_196.pth  --ext .txt --threshold 0.4
+
+'''
+
 import argparse
 import glob
+from operator import gt
 from pathlib import Path
+import os.path as osp
+
+from pcdet.utils import object3d_livox
 
 try:
     import open3d
@@ -48,6 +57,26 @@ class DemoDataset(DatasetTemplate):
             points = np.fromfile(self.sample_file_list[index], dtype=np.float32).reshape(-1, 4)
         elif self.ext == '.npy':
             points = np.load(self.sample_file_list[index])
+        elif self.ext == '.txt':
+            points = [] # List to aggregate points per frame.
+            lidar_file = self.sample_file_list[index]
+            with open(str(lidar_file)) as file:
+                for line in file:
+                    pt_list = line.rstrip().split(',')
+                    points.append([[float(item) for item in pt_list]])
+            points = np.concatenate(points).astype(np.float32)
+            points = points.reshape(-1, 6)
+
+            # Extract points corresponding to the frontal lidar
+            # Lidar Id - 1,2,5 (frontal) | 6 - tele-lidar | 4,3 (back)
+            lidar_number = [1,2,5] 
+            points_filt = []
+            for ln in lidar_number:
+                points_filt.append(points[points[:,-1] == ln, :])
+            points_filt = np.concatenate(points_filt)
+            # Extract only xyz infomration
+            points_filt = points_filt[:,[0,1,2]]
+            points = points_filt
         else:
             raise NotImplementedError
 
@@ -68,12 +97,33 @@ def parse_config():
                         help='specify the point cloud data file or directory')
     parser.add_argument('--ckpt', type=str, default=None, help='specify the pretrained model')
     parser.add_argument('--ext', type=str, default='.bin', help='specify the extension of your point cloud data file')
+    parser.add_argument('--threshold', type=float, default=0, help='threshold to filter out predictions with low confidence')
+    parser.add_argument('--show_GT', action='store_true', help='To show groundtruth')
 
     args = parser.parse_args()
 
     cfg_from_yaml_file(args.cfg_file, cfg)
 
     return args, cfg
+
+def parse_annotation(anno_path):
+    annos = object3d_livox.get_objects_from_label(anno_path)
+    loc = [] 
+    dim = []
+    yaw = []
+    bbox = []
+    label = []
+    for anno in annos:
+        loc.append(anno.loc)
+        dim.append([anno.l, anno.w, anno.h])
+        yaw.append([anno.ry])
+        label.append([anno.cls_id])
+    loc = np.array(loc)
+    dim = np.concatenate(dim).reshape(-1,3)
+    yaw = np.concatenate(yaw).reshape(-1,1)
+    bbox = np.hstack((loc, dim, yaw))
+    label = np.concatenate(label).reshape(-1)
+    return bbox, label
 
 
 def main():
@@ -86,6 +136,16 @@ def main():
     )
     logger.info(f'Total number of samples: \t{len(demo_dataset)}')
 
+    if args.show_GT:
+        logger.info('Fetching groundtruth .......')
+        file_name = args.data_path.split('/')
+        file_name[-2] = 'anno'
+        anno_path = ''
+        for f in file_name:
+            anno_path = osp.join(anno_path, f)
+        gt_bbox, gt_labels = parse_annotation(anno_path)
+
+
     model = build_network(model_cfg=cfg.MODEL, num_class=len(cfg.CLASS_NAMES), dataset=demo_dataset)
     model.load_params_from_file(filename=args.ckpt, logger=logger, to_cpu=True)
     model.cuda()
@@ -97,10 +157,26 @@ def main():
             load_data_to_gpu(data_dict)
             pred_dicts, _ = model.forward(data_dict)
 
-            V.draw_scenes(
-                points=data_dict['points'][:, 1:], ref_boxes=pred_dicts[0]['pred_boxes'],
-                ref_scores=pred_dicts[0]['pred_scores'], ref_labels=pred_dicts[0]['pred_labels']
-            )
+            # Threshold
+            mask = pred_dicts[0]['pred_scores'] > args.threshold
+
+            if args.show_GT:
+                print(pred_dicts[0]['pred_labels'][mask]-1)
+                print("")
+                print(gt_labels)
+                V.draw_scenes(
+                    points=data_dict['points'][:, 1:], ref_boxes=pred_dicts[0]['pred_boxes'][mask],
+                    ref_scores=pred_dicts[0]['pred_scores'][mask], ref_labels=pred_dicts[0]['pred_labels'][mask],
+                    gt_boxes=gt_bbox, gt_labels=gt_labels
+                )
+            else:
+                V.draw_scenes(
+                    points=data_dict['points'][:, 1:], ref_boxes=pred_dicts[0]['pred_boxes'][mask],
+                    ref_scores=pred_dicts[0]['pred_scores'][mask], ref_labels=pred_dicts[0]['pred_labels'][mask]
+                )
+
+            # Show ground truth
+            mask = pred_dicts[0]['pred_scores'] > 0
 
             if not OPEN3D_FLAG:
                 mlab.show(stop=True)
